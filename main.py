@@ -9,7 +9,7 @@ USERNAME = os.getenv("USERNAME")
 PASSWORD = os.getenv("PASSWORD")
 
 # URLы
-LOGIN_URL = "https://edu.rossiya-airlines.com/login/index.php"
+LOGIN_URL = "https://edu.rossiya-airlines.com/login/"
 WORKPLAN_URL = "https://edu.rossiya-airlines.com/workplan/"
 
 # Сессия для работы с куками

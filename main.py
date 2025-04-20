@@ -45,7 +45,7 @@ event.description = "Это тестовая смена"
 cal.events.add(event)
 
 # 4. Сохраняем файл
-with open("calendar.ics", "w", encoding="utf-8") as f:
-    f.writelines(cal.serialize_iter())
+with open("public/calendar.ics", "w", encoding="utf-8") as f:
+    f.write(c.serialize())
 
 print("✅ Календарь создан: calendar.ics")

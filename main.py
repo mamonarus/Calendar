@@ -1,51 +1,66 @@
-import os
 import requests
 from bs4 import BeautifulSoup
 from ics import Calendar, Event
 from datetime import datetime, timedelta
+import re
 
-# Получаем логин и пароль из секретов
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
+LOGIN = "124228"
+PASSWORD = "Boeing019"
+BASE_URL = "https://edu.rossiya-airlines.com"
 
-# URLы
-LOGIN_URL = "https://edu.rossiya-airlines.com/login/"
-WORKPLAN_URL = "https://edu.rossiya-airlines.com/workplan/"
-
-# Сессия для работы с куками
 session = requests.Session()
-
-# 1. Получаем токен входа
-login_page = session.get(LOGIN_URL)
+login_page = session.get(f"{BASE_URL}/workplan/")
 soup = BeautifulSoup(login_page.text, "html.parser")
-logintoken = soup.find("input", {"name": "logintoken"}).get("value")
 
-# 2. Логинимся
-payload = {
-    "username": USERNAME,
+# Получаем токен из формы входа
+token_input = soup.find("input", {"name": "_token"})
+token = token_input["value"] if token_input else ""
+
+# Отправляем форму входа
+session.post(f"{BASE_URL}/login", data={
+    "username": LOGIN,
     "password": PASSWORD,
-    "logintoken": logintoken,
-}
-response = session.post(LOGIN_URL, data=payload)
+    "_token": token
+})
 
-if "workplan" not in response.text:
-    raise Exception("Ошибка входа — проверь логин/пароль")
+# Генерация месяцев: текущий и следующий
+today = datetime.utcnow()
+months = [today.replace(day=1), (today.replace(day=28) + timedelta(days=4)).replace(day=1)]
 
-print("✅ Успешный вход")
+events = []
+for month in months:
+    url = f"{BASE_URL}/workplan/?date={month.strftime('%d.%m.%Y')}"
+    r = session.get(url)
+    soup = BeautifulSoup(r.text, "html.parser")
 
-# 3. Пока просто создаём тестовый календарь
-cal = Calendar()
+    rows = soup.select("table tbody tr")
+    for row in rows:
+        # Пропускаем зачеркнутые строки (неподтвержденные)
+        if row.find("s"):
+            continue
 
-event = Event()
-event.name = "Рабочая смена (тест)"
-event.begin = datetime.now() + timedelta(days=1)
-event.end = event.begin + timedelta(hours=10)
-event.description = "Это тестовая смена"
+        cols = row.find_all("td")
+        if len(cols) < 2:
+            continue
 
-cal.events.add(event)
+        type_cell = cols[0].text.strip()
+        datetime_str = cols[1].text.strip()
+        desc = row.text.strip().replace("\n", " ")
 
-# 4. Сохраняем файл
-with open("public/calendar.ics", "w", encoding="utf-8") as f:
-    f.write(c.serialize())
+        try:
+            dt = datetime.strptime(datetime_str, "%d.%m.%Y %H:%M UTC")
+        except:
+            dt = datetime.strptime(datetime_str.split()[0], "%d.%m.%Y")
+            dt = datetime.combine(dt, datetime.min.time())
 
-print("✅ Календарь создан: calendar.ics")
+        event = Event()
+        event.name = type_cell
+        event.begin = dt
+        event.duration = timedelta(hours=8)
+        event.description = desc
+        events.append(event)
+
+# Сохраняем в ICS
+cal = Calendar(events=events)
+with open("calendar.ics", "w", encoding="utf-8") as f:
+    f.writelines(cal)
